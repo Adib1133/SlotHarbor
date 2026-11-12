@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible problem with SlotHarbor on Windows
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: SlotHarbor version
+      description: Copy the version from the title bar or run slotharbor --version.
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and architecture
+      placeholder: Windows 11, x64
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the game, store, backup format, and any relevant redirects.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected and actual behavior
+      description: Remove private paths, account names, and credentials before attaching logs.
+    validations:
+      required: true
