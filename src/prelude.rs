@@ -115,6 +115,8 @@ pub enum Error {
     UnableToOpenUrl(String),
     RcloneUnavailable,
     CloudNotConfigured,
+    CloudMonitorUnavailable,
+    BackupWorkerFailed(String),
     CloudPathInvalid,
     UnableToConfigureCloud(CommandError),
     UnableToSynchronizeCloud(CommandError),

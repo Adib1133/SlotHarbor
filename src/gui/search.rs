@@ -291,3 +291,88 @@ impl CustomGamesFilter {
         )
     }
 }
+
+const INDEX_RESULT_LIMIT: usize = 6;
+
+pub fn find_indexed_games(manifest: &Manifest, query: &str) -> Vec<String> {
+    let needle = crate::scan::title::normalize_title(query);
+    let mut matches = std::collections::BTreeMap::new();
+    let aliases = manifest.aliases();
+    if !needle.is_empty() {
+        for name in manifest.0.keys() {
+            let normalized = crate::scan::title::normalize_title(name);
+            let rank = if normalized == needle {
+                0
+            } else if normalized.starts_with(&needle) {
+                1
+            } else if normalized.contains(&needle) {
+                2
+            } else {
+                continue;
+            };
+            let canonical = aliases.get(name).unwrap_or(name);
+            matches
+                .entry(canonical)
+                .and_modify(|best: &mut u8| *best = (*best).min(rank))
+                .or_insert(rank);
+        }
+    }
+    let mut matches: Vec<_> = matches.into_iter().collect();
+    matches.sort_unstable_by(|(a, ar), (b, br)| ar.cmp(br).then_with(|| a.cmp(b)));
+    matches
+        .into_iter()
+        .take(INDEX_RESULT_LIMIT + 1)
+        .map(|(name, _)| name.clone())
+        .collect()
+}
+
+pub fn indexed_games(query: &str, matches: &[String], idle: bool) -> Container<'static> {
+    let mut content = Column::new().spacing(7).push(
+        crate::gui::widget::TextInput::new(&TRANSLATOR.game_index_placeholder(), query)
+            .id("indexed-game-search")
+            .on_input(Message::SearchGameIndex)
+            .padding(8),
+    );
+
+    if !query.trim().is_empty() {
+        if matches.is_empty() {
+            content = content.push(text(TRANSLATOR.game_index_no_matches()));
+        }
+        for title in matches.iter().take(INDEX_RESULT_LIMIT) {
+            content = content.push(
+                crate::gui::widget::Button::new(text(title.clone()))
+                    .width(iced::Length::Fill)
+                    .class(style::Button::NavButtonInactive)
+                    .on_press_maybe(idle.then(|| Message::PreviewIndexedGame(title.clone()))),
+            );
+        }
+        if matches.len() > INDEX_RESULT_LIMIT {
+            content = content.push(text(TRANSLATOR.game_index_refine()));
+        }
+    }
+
+    Container::new(content)
+        .width(iced::Length::Fill)
+        .max_width(580)
+        .padding(10)
+        .class(style::Container::Summary)
+}
+
+#[cfg(test)]
+mod index_tests {
+    use super::*;
+    use crate::resource::ResourceFile;
+
+    #[test]
+    fn searches_before_scanning_and_merges_aliases() {
+        let manifest =
+            Manifest::load_from_string("Star Quest: {}\nStar Quest II: {}\nOrbit: { alias: Star Quest }\n").unwrap();
+
+        assert_eq!(
+            find_indexed_games(&manifest, "STAR QUEST"),
+            ["Star Quest", "Star Quest II"]
+        );
+        assert_eq!(find_indexed_games(&manifest, "orbit"), ["Star Quest"]);
+        assert!(find_indexed_games(&manifest, "unknown").is_empty());
+    }
+}

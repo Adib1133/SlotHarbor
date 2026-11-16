@@ -704,6 +704,8 @@ impl GameLayout {
                     reverse_redirects_on_restore,
                     toggled_paths,
                 ),
+                configuration_files: Default::default(),
+                checked_save_paths: Default::default(),
                 // Registry is handled separately.
                 found_registry_keys: Default::default(),
                 available_backups: vec![],
@@ -1759,6 +1761,8 @@ impl GameLayout {
         ScanInfo {
             game_name: name.to_string(),
             found_files,
+            configuration_files: Default::default(),
+            checked_save_paths: Default::default(),
             found_registry_keys,
             available_backups,
             backup,
@@ -3478,6 +3482,8 @@ mod tests {
 
             assert_eq!(
                 ScanInfo {
+                    configuration_files: Default::default(),
+                    checked_save_paths: Default::default(),
                     game_name: s("game1"),
                     found_files: hash_map! {
                         restorable_file_simple(SOLO, "file1.txt"): ScannedFile {
@@ -3524,6 +3530,8 @@ mod tests {
             if cfg!(target_os = "windows") {
                 assert_eq!(
                     ScanInfo {
+                        configuration_files: Default::default(),
+                        checked_save_paths: Default::default(),
                         game_name: s("game3"),
                         found_files: Default::default(),
                         found_registry_keys: hash_map! {
@@ -3578,6 +3586,8 @@ mod tests {
             } else {
                 assert_eq!(
                     ScanInfo {
+                        configuration_files: Default::default(),
+                        checked_save_paths: Default::default(),
                         game_name: s("game3"),
                         found_files: Default::default(),
                         found_registry_keys: Default::default(),

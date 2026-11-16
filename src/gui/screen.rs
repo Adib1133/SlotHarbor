@@ -52,7 +52,9 @@ fn make_status_row<'a>(status: &OperationStatus, duplication: Duplication) -> Co
         })
         .push(text(TRANSLATOR.processed_bytes(status)).size(size))
         .push_if(!duplication.resolved(), || {
-            Badge::new(&TRANSLATOR.badge_duplicates()).view()
+            Badge::new(&TRANSLATOR.badge_duplicates())
+                .tooltip(TRANSLATOR.duplicates_explanation())
+                .view()
         });
 
     Container::new(summary)
@@ -406,7 +408,7 @@ pub fn other<'a>(
                                     .class(style::Checkbox),
                                 )
                                 .push(checkbox(
-                                    TRANSLATOR.exclude_settings_files(),
+                                    TRANSLATOR.label_more_settings_files(),
                                     config.backup.filter.exclude_settings_files,
                                     Message::config(config::Event::ExcludeSettingsFiles),
                                 ))

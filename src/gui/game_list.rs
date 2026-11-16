@@ -145,6 +145,7 @@ impl GameListEntry {
                         })
                         .push_if(!duplication.unique(), || {
                             Badge::new(&TRANSLATOR.badge_duplicates())
+                                .tooltip(TRANSLATOR.duplicates_explanation())
                                 .faded(duplication.resolved())
                                 .on_press(Message::FilterDuplicates {
                                     scan_kind,
@@ -327,6 +328,74 @@ impl GameListEntry {
                                 ),
                         ),
                 )
+                .push_if(
+                    scan_kind.is_backup()
+                        && self.scanned
+                        && (!self.scan_info.has_live_save_data() || !self.scan_info.configuration_files.is_empty()),
+                    || {
+                        let scan = &self.scan_info;
+                        let has_saves = scan.has_live_save_data();
+                        let configuration = &scan.configuration_files;
+                        let note = |message| manifest::Note { message, source: None };
+                        let mut notes = Vec::new();
+                        if !has_saves {
+                            notes.push(note(TRANSLATOR.scan_no_save_files()));
+                        }
+                        for path in configuration {
+                            notes.push(note(format!(
+                                "{} · {}",
+                                TRANSLATOR.scan_configuration_file(),
+                                path.render()
+                            )));
+                        }
+                        if scan.checked_save_paths.is_empty() {
+                            notes.push(note(TRANSLATOR.scan_no_known_locations()));
+                        } else {
+                            notes.push(note(TRANSLATOR.scan_checked_locations()));
+                            notes.extend(scan.checked_save_paths.iter().map(|path| note(path.render())));
+                        }
+                        Row::new()
+                            .spacing(10)
+                            .align_y(Alignment::Center)
+                            .push_if(!has_saves, || text(TRANSLATOR.scan_no_save_files()))
+                            .push_if(!configuration.is_empty(), || {
+                                Badge::new(&format!(
+                                    "{} ({})",
+                                    TRANSLATOR.scan_configuration_file(),
+                                    configuration.len()
+                                ))
+                                .tooltip(TRANSLATOR.scan_configuration_selection())
+                                .on_press(Message::ToggleGameListEntryExpanded { name: name.clone() })
+                                .view()
+                            })
+                            .push(button::primary(
+                                TRANSLATOR.scan_details(),
+                                Some(Message::ShowGameNotes {
+                                    game: name.clone(),
+                                    notes,
+                                }),
+                            ))
+                            .push_if(!has_saves, || {
+                                button::primary(
+                                    TRANSLATOR.browse_save_file(),
+                                    (!operating).then(|| Message::BrowseMissingSave {
+                                        game: name.clone(),
+                                        folder: false,
+                                    }),
+                                )
+                            })
+                            .push_if(!has_saves, || {
+                                button::primary(
+                                    TRANSLATOR.browse_save_folder(),
+                                    (!operating).then(|| Message::BrowseMissingSave {
+                                        game: name.clone(),
+                                        folder: true,
+                                    }),
+                                )
+                            })
+                            .wrap()
+                    },
+                )
                 .push(self.comment_editor.as_ref().map(|x| {
                     Row::new()
                         .align_y(Alignment::Center)
@@ -491,7 +560,8 @@ impl GameList {
         let show = config.should_show_game(
             &entry.scan_info.game_name,
             scan_kind,
-            entry.scan_info.overall_change().is_changed(),
+            entry.scan_info.overall_change().is_changed()
+                || (scan_kind.is_backup() && entry.scanned && !entry.scan_info.has_live_save_data()),
             entry.scanned,
         );
 
@@ -702,11 +772,11 @@ impl GameList {
     ) {
         let game_name = scan_info.game_name.clone();
         let index = self.find_game(&game_name);
-        let scanned = scan_info.found_anything();
+        let scanned = scan_kind.is_backup() || scan_info.found_anything();
 
         match index {
             Some(i) => {
-                if scan_info.can_report_game() {
+                if scan_kind.is_backup() || scan_info.can_report_game() {
                     let entry = &mut self.entries[i];
 
                     entry.scan_info = scan_info;

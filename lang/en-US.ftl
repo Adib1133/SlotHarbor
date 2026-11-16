@@ -215,7 +215,8 @@ synchronize-automatically = Synchronize automatically
 prefer-alias-display = Display alias instead of original name
 skip-unconstructive-backups = Skip backup when data would be removed, but not added or updated
 
-exclude-settings-files = Exclude game settings files from backups
+label-more-settings-files = Also label common non-INI settings files as configuration
+scan-configuration-selection = Open the file list to choose which files to include in backups.
 explanation-for-exclude-store-screenshots =
     In backups, exclude store-specific screenshots
 
@@ -304,3 +305,30 @@ restore-review-create = Create file
 restore-review-newer = The current file was modified after this backup.
 restore-review-other-profile = This path points to a different Windows user profile.
 restore-review-safety = Copies of replaced files will be kept in { $path }.
+
+navigation-back = Back
+game-index-label = Find game
+game-index-placeholder = Search indexed games or aliases
+game-index-no-matches = No indexed games match.
+game-index-refine = Type more of the title to narrow the results.
+duplicates-explanation = More than one game entry references the same file path or registry setting. This can happen with editions or games that share data. The badge does not tell you which file is newer.
+live-save-newer = Live save newer than backup
+save-difference-backup = The live save differs from the backup. The live save is the source for a new backup.
+save-difference-restore = The selected backup differs from the live save. Restore writes the backup version.
+live-save-modified = Live save last modified: { $timestamp }
+backup-save-modified = Backed-up save last modified: { $timestamp }
+backup-save-newer = The backed-up save has the later modification time.
+save-times-indistinguishable = The timestamps do not distinguish which save is newer.
+
+scan-configuration-file = Configuration file
+scan-no-save-files = No save files found
+scan-details = Scan details
+scan-checked-locations = Locations checked
+scan-no-known-locations = No file locations are known for this game.
+browse-save-file = Browse for save file
+browse-save-folder = Browse for save folder
+confirm-backup-destination = Back up the selected saves to this folder?
+cloud-monitor-unavailable = The cloud sync monitor is unavailable.
+backup-worker-failed = A backup worker stopped unexpectedly.
+
+version-footer = Version { $version }

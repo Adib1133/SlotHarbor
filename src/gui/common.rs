@@ -52,10 +52,12 @@ pub enum BackupPhase {
         jump: bool,
         games: Option<GameSelection>,
     },
+    TargetPrepared(Result<(), Error>),
     CloudCheck,
     Load,
     RegisterCommands {
         subjects: Vec<String>,
+        roots: Vec<Root>,
         manifest: Manifest,
         layout: Box<BackupLayout>,
         steam: SteamShortcuts,
@@ -64,6 +66,7 @@ pub enum BackupPhase {
     GameScanned {
         scan_info: Option<ScanInfo>,
         backup_info: Option<BackupInfo>,
+        error: Option<Error>,
     },
     CloudSync,
     Done,
@@ -201,6 +204,10 @@ pub enum Message {
     FindRoots,
     ConfirmAddMissingRoots(Vec<Root>),
     SwitchScreen(Screen),
+    Back,
+    ToggleGameIndex,
+    SearchGameIndex(String),
+    PreviewIndexedGame(String),
     ToggleGameListEntryExpanded {
         name: String,
     },
@@ -248,6 +255,14 @@ pub enum Message {
     Scroll {
         subject: ScrollSubject,
         position: iced::widget::scrollable::AbsoluteOffset,
+    },
+    BrowseMissingSave {
+        game: String,
+        folder: bool,
+    },
+    AddMissingSave {
+        game: String,
+        path: StrictPath,
     },
     ShowGameNotes {
         game: String,

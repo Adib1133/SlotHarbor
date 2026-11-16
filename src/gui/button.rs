@@ -319,6 +319,20 @@ pub fn open_url_icon<'a>(url: String) -> Element<'a> {
     template(Icon::OpenInBrowser.text(), Some(Message::OpenUrl(url)), None)
 }
 
+pub fn navigation_action(icon: Icon, label: String, action: Option<Message>) -> Element<'static> {
+    Button::new(
+        Row::new()
+            .spacing(6)
+            .align_y(iced::Alignment::Center)
+            .push(icon.text_small())
+            .push(text(label).size(14)),
+    )
+    .on_press_maybe(action)
+    .padding([9, 10])
+    .class(style::Button::NavButtonInactive)
+    .into()
+}
+
 pub fn nav<'a>(screen: Screen, current_screen: Screen) -> Button<'a> {
     let (label, icon) = match screen {
         Screen::Backup => (TRANSLATOR.nav_backup_button(), Icon::Upload),

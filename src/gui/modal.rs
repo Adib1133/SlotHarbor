@@ -265,9 +265,7 @@ impl Modal {
             Self::Error { variant } => TRANSLATOR.handle_error(variant),
             Self::Errors { errors } => errors.iter().map(|x| TRANSLATOR.handle_error(x)).join("\n\n"),
             Self::Exiting => TRANSLATOR.cancelling_button(),
-            Self::ConfirmBackup { .. } => {
-                TRANSLATOR.confirm_backup(&config.backup.path, config.backup.path.exists(), true)
-            }
+            Self::ConfirmBackup { .. } => TRANSLATOR.confirm_backup_destination(&config.backup.path),
             Self::ConfirmRestore { review, .. } => TRANSLATOR.confirm_restore(
                 review.as_ref().map_or(&config.restore.path, |review| &review.source),
                 false,

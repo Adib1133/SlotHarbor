@@ -22,7 +22,7 @@ pub const MANIFEST_URL: &str =
     "https://raw.githubusercontent.com/mtkennerly/ludusavi-manifest/master/data/manifest.yaml";
 
 fn default_backup_dir() -> StrictPath {
-    StrictPath::new(format!("{}/ludusavi-backup", CommonPath::Home.get().unwrap())).rendered()
+    StrictPath::new("C:/Slotharbor")
 }
 
 #[derive(Debug, Clone)]
@@ -611,7 +611,7 @@ impl CloudFilter {
 pub struct BackupFilter {
     /// If true, then the backup should exclude screenshots from stores like Steam.
     pub exclude_store_screenshots: bool,
-    /// Exclude files identified as game settings from new backups.
+    /// Also label common non-INI settings filenames as configuration. The YAML key is retained for compatibility.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub exclude_settings_files: bool,
     pub cloud: CloudFilter,
@@ -1419,6 +1419,17 @@ impl ResourceFile for Config {
         self.backup.filter.build_globs();
         self.rebase_paths();
 
+        if let Some(home) = CommonPath::Home.get() {
+            for name in ["ludusavi-backup", "SlotHarbor Backup"] {
+                let legacy = StrictPath::new(home).joined(name);
+                if self.backup.path.equivalent(&legacy) && !legacy.exists() {
+                    self.backup.path = default_backup_dir();
+                }
+                if self.restore.path.equivalent(&legacy) && !legacy.exists() {
+                    self.restore.path = default_backup_dir();
+                }
+            }
+        }
         self
     }
 }

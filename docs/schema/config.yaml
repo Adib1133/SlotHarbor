@@ -37,7 +37,7 @@ properties:
           compression: deflate
       ignoredGames: []
       onlyConstructive: false
-      path: "C:/Users/mtken/ludusavi-backup"
+      path: "C:/Slotharbor"
       retention:
         differential: 0
         full: 1
@@ -82,7 +82,7 @@ properties:
   restore:
     default:
       ignoredGames: []
-      path: "C:/Users/mtken/ludusavi-backup"
+      path: "C:/Slotharbor"
       reverseRedirects: false
       sort:
         key: status
@@ -180,7 +180,7 @@ definitions:
         type: boolean
       path:
         description: Full path to a directory in which to save backups.
-        default: "C:/Users/mtken/ludusavi-backup"
+        default: "C:/Slotharbor"
         allOf:
           - $ref: "#/definitions/FilePath"
       retention:
@@ -217,7 +217,7 @@ definitions:
         allOf:
           - $ref: "#/definitions/CloudFilter"
       excludeSettingsFiles:
-        description: Exclude files identified as game settings from new backups.
+        description: Also label common non-INI settings filenames as configuration.
         default: false
         type: boolean
       excludeStoreScreenshots:
@@ -563,7 +563,7 @@ definitions:
         uniqueItems: true
       path:
         description: Full path to a directory from which to restore data.
-        default: "C:/Users/mtken/ludusavi-backup"
+        default: "C:/Slotharbor"
         allOf:
           - $ref: "#/definitions/FilePath"
       reverseRedirects:

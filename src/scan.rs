@@ -166,19 +166,22 @@ impl FileKind {
         }
     }
 
-    fn is_config(self, path: &StrictPath) -> bool {
+    fn is_config(self, path: &StrictPath, infer_settings: bool) -> bool {
         match self {
             Self::Config | Self::ConfigDirectory => true,
             Self::Save => false,
             Self::Unknown => {
                 let name = path.raw().rsplit(['/', '\\']).next().unwrap_or_default();
-                matches!(
-                    name.to_ascii_lowercase().rsplit_once('.'),
-                    Some((
-                        "settings" | "config" | "options" | "preferences" | "gameusersettings",
-                        "ini" | "cfg" | "conf" | "json" | "xml" | "toml" | "yaml" | "yml"
-                    ))
-                )
+                let name = name.to_ascii_lowercase();
+                name.ends_with(".ini")
+                    || (infer_settings
+                        && matches!(
+                            name.rsplit_once('.'),
+                            Some((
+                                "settings" | "config" | "options" | "preferences" | "gameusersettings",
+                                "ini" | "cfg" | "conf" | "json" | "xml" | "toml" | "yaml" | "yml"
+                            ))
+                        ))
             }
         }
     }
@@ -607,9 +610,47 @@ pub fn scan_game_for_backup(
     steam_shortcuts: &SteamShortcuts,
     only_constructive_backups: bool,
 ) -> ScanInfo {
+    scan_game_for_backup_with_diagnostics(
+        game,
+        name,
+        roots,
+        manifest_dir,
+        launchers,
+        filter,
+        wine_prefix,
+        ignored_paths,
+        ignored_registry,
+        previous,
+        redirects,
+        reverse_redirects_on_restore,
+        steam_shortcuts,
+        only_constructive_backups,
+        false,
+    )
+}
+
+pub fn scan_game_for_backup_with_diagnostics(
+    game: &Game,
+    name: &str,
+    roots: &[Root],
+    manifest_dir: &StrictPath,
+    launchers: &Launchers,
+    filter: &BackupFilter,
+    wine_prefix: Option<&StrictPath>,
+    ignored_paths: &ToggledPaths,
+    #[cfg_attr(not(target_os = "windows"), allow(unused))] ignored_registry: &ToggledRegistry,
+    previous: Option<&LatestBackup>,
+    redirects: &[RedirectConfig],
+    reverse_redirects_on_restore: bool,
+    steam_shortcuts: &SteamShortcuts,
+    only_constructive_backups: bool,
+    report_checked_paths: bool,
+) -> ScanInfo {
     log::trace!("[{name}] beginning scan for backup");
 
     let mut found_files = HashMap::new();
+    let mut checked_save_paths = std::collections::BTreeSet::new();
+    let mut configuration_files = std::collections::BTreeSet::new();
     #[cfg_attr(not(target_os = "windows"), allow(unused))]
     let mut found_registry_keys = HashMap::new();
     #[allow(unused)]
@@ -781,6 +822,7 @@ pub fn scan_game_for_backup(
         );
 
     let mut matched_files = HashMap::<StrictPath, FileKind>::new();
+    let mut checked_candidates = Vec::new();
     let mut record_file = |path: StrictPath, kind: FileKind| {
         let Ok(scan_key) = path.interpreted().map(|x| x.rendered()) else {
             return;
@@ -801,6 +843,7 @@ pub fn scan_game_for_backup(
             log::debug!("[{name}] excluded: {path:?}");
             continue;
         }
+        checked_candidates.push(path.clone());
         let paths = match case_sensitive {
             None => path.glob(),
             Some(cs) => path.glob_case_sensitive(cs),
@@ -830,11 +873,27 @@ pub fn scan_game_for_backup(
         }
     }
 
-    for (scan_key, kind) in matched_files {
-        if filter.exclude_settings_files && kind.is_config(&scan_key) {
-            log::debug!("[{name}] excluded settings file: {scan_key:?}");
-            continue;
-        }
+    configuration_files.extend(
+        matched_files
+            .iter()
+            .filter(|(path, kind)| kind.is_config(path, filter.exclude_settings_files))
+            .map(|(path, _)| path.clone()),
+    );
+
+    if report_checked_paths || !configuration_files.is_empty() {
+        checked_save_paths.extend(checked_candidates);
+    }
+    if !configuration_files.is_empty() && matched_files.len() == configuration_files.len() {
+        find_nearby_saves(
+            name,
+            &configuration_files,
+            filter,
+            &mut matched_files,
+            &mut checked_save_paths,
+        );
+    }
+
+    for scan_key in matched_files.into_keys() {
         let ignored = ignored_paths.is_ignored(name, &scan_key);
         log::debug!("[{name}] found: {scan_key:?}");
         let size = scan_key.size();
@@ -975,12 +1034,80 @@ pub fn scan_game_for_backup(
     ScanInfo {
         game_name: name.to_string(),
         found_files,
+        configuration_files,
+        checked_save_paths,
         found_registry_keys,
         available_backups: vec![],
         backup: None,
         has_backups,
         dumped_registry,
         only_constructive_backups,
+    }
+}
+
+fn find_nearby_saves(
+    game: &str,
+    configs: &std::collections::BTreeSet<StrictPath>,
+    filter: &BackupFilter,
+    found: &mut HashMap<StrictPath, FileKind>,
+    checked: &mut std::collections::BTreeSet<StrictPath>,
+) {
+    let title = title::normalize_title(game);
+    let mut folders = std::collections::BTreeSet::new();
+    for config in configs {
+        let Ok(path) = config.as_std_path_buf() else { continue };
+        let (Some(parent), Some(stem)) = (path.parent(), path.file_stem().and_then(|x| x.to_str())) else {
+            continue;
+        };
+        for extension in ["sav", "save", "savegame"] {
+            let sibling = StrictPath::from(parent.join(format!("{stem}.{extension}")));
+            checked.insert(sibling.clone());
+            if sibling.is_file() && !configs.contains(&sibling) && !filter.is_path_ignored(&sibling) {
+                found.insert(sibling, FileKind::Save);
+            }
+        }
+
+        // Only look for conventional save folders inside a directory named for this game.
+        if !title.is_empty() {
+            if let Some(game_dir) = parent.ancestors().find(|dir| {
+                dir.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| title::normalize_title(name) == title)
+            }) {
+                for base in [game_dir.to_path_buf(), game_dir.join("Saved")] {
+                    for subdir in ["Saves", "SaveGames", "Save Games"] {
+                        folders.insert(base.join(subdir));
+                    }
+                }
+            }
+        }
+    }
+
+    for folder in folders {
+        let path = StrictPath::from(folder.clone());
+        checked.insert(path.clone());
+        if filter.is_path_ignored(&path) {
+            continue;
+        }
+        for entry in walkdir::WalkDir::new(folder)
+            .max_depth(3)
+            .into_iter()
+            .filter_map(Result::ok)
+        {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let Some(extension) = entry.path().extension().and_then(|x| x.to_str()) else {
+                continue;
+            };
+            if !matches!(extension.to_ascii_lowercase().as_str(), "sav" | "save" | "savegame") {
+                continue;
+            }
+            let path = StrictPath::from(entry.path());
+            if !configs.contains(&path) && !filter.is_path_ignored(&path) {
+                found.insert(path, FileKind::Save);
+            }
+        }
     }
 }
 
@@ -1203,6 +1330,49 @@ mod tests {
     }
 
     #[test]
+    fn ini_only_scan_reports_configuration_and_finds_a_matching_save() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = StrictPath::from(directory.path());
+        let ini = root.joined("profile.INI");
+        let save = root.joined("profile.sav");
+        ini.write_with_content("quality=high").unwrap();
+        let mut game = Game::default();
+        game.files.insert(ini.globbable(), GameFileEntry::default());
+
+        let scan = || {
+            scan_game_for_backup_with_diagnostics(
+                &game,
+                "Example Game",
+                &[],
+                &root,
+                &Launchers::default(),
+                &BackupFilter::default(),
+                None,
+                &ToggledPaths::default(),
+                &ToggledRegistry::default(),
+                None,
+                &[],
+                false,
+                &SteamShortcuts::default(),
+                false,
+                true,
+            )
+        };
+        let missing = scan();
+        assert!(!missing.has_live_save_data());
+        assert!(missing.configuration_files.iter().any(|path| path.equivalent(&ini)));
+        assert!(missing.checked_save_paths.iter().any(|path| path.equivalent(&save)));
+        assert_eq!(missing.found_files.len(), 1);
+        assert!(missing.found_files.values().all(|file| !file.ignored));
+
+        save.write_with_content("checkpoint").unwrap();
+        let found = scan();
+        assert!(found.has_live_save_data());
+        assert_eq!(found.found_files.len(), 2);
+        assert!(found.found_files.keys().any(|path| path.equivalent(&save)));
+    }
+
+    #[test]
     fn settings_filter_respects_save_tags_and_overlapping_paths() {
         let manifest = Manifest::load_from_string(
             r#"
@@ -1244,15 +1414,16 @@ mod tests {
 
         let filtered = scan(true);
         let path = |name| StrictPath::new(format!("{}/tests/root1/game1/{name}", repo()));
-        assert!(scan(false).found_files.contains_key(&path("ignored.txt")));
-        assert!(!filtered.found_files.contains_key(&path("ignored.txt")));
+        assert!(scan(false).configuration_files.contains(&path("ignored.txt")));
+        assert!(filtered.found_files.contains_key(&path("ignored.txt")));
+        assert!(!filtered.found_files[&path("ignored.txt")].ignored);
         assert!(filtered.found_files.contains_key(&path("subdir/file2.txt")));
-        assert!(FileKind::Unknown.is_config(&StrictPath::new("GameUserSettings.ini")));
-        assert!(!FileKind::Unknown.is_config(&StrictPath::new("progress.json")));
-        assert!(!FileKind::Save.is_config(&StrictPath::new("GameUserSettings.ini")));
+        assert!(FileKind::Unknown.is_config(&StrictPath::new("GameUserSettings.ini"), false));
+        assert!(!FileKind::Unknown.is_config(&StrictPath::new("progress.json"), false));
+        assert!(!FileKind::Save.is_config(&StrictPath::new("GameUserSettings.ini"), false));
         assert!(FileKind::Save
             .for_directory()
-            .is_config(&StrictPath::new("GameUserSettings.ini")));
+            .is_config(&StrictPath::new("GameUserSettings.ini"), false));
     }
 
     #[test]

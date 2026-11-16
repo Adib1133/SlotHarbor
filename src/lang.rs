@@ -365,8 +365,78 @@ impl Translator {
         }
     }
 
+    pub fn navigation_back(&self) -> String {
+        translate("navigation-back")
+    }
+
+    pub fn game_index_label(&self) -> String {
+        translate("game-index-label")
+    }
+
+    pub fn game_index_placeholder(&self) -> String {
+        translate("game-index-placeholder")
+    }
+
+    pub fn game_index_no_matches(&self) -> String {
+        translate("game-index-no-matches")
+    }
+
+    pub fn game_index_refine(&self) -> String {
+        translate("game-index-refine")
+    }
+
+    pub fn duplicates_explanation(&self) -> String {
+        translate("duplicates-explanation")
+    }
+
+    pub fn save_difference(
+        &self,
+        kind: crate::scan::ScanKind,
+        live: Option<std::time::SystemTime>,
+        backup: Option<std::time::SystemTime>,
+        zip: bool,
+    ) -> String {
+        let mut details = translate(match kind {
+            crate::scan::ScanKind::Backup => "save-difference-backup",
+            crate::scan::ScanKind::Restore => "save-difference-restore",
+        });
+        let format_time = |time| {
+            chrono::DateTime::<chrono::Local>::from(time)
+                .format("%Y-%m-%d %H:%M:%S %Z")
+                .to_string()
+        };
+        for (key, time) in [("live-save-modified", live), ("backup-save-modified", backup)] {
+            if let Some(time) = time {
+                let mut args = FluentArgs::new();
+                args.set("timestamp", format_time(time));
+                details.push('\n');
+                details.push_str(&translate_args(key, &args));
+            }
+        }
+        if let (Some(live), Some(backup)) = (live, backup) {
+            let tolerance = std::time::Duration::from_secs(if zip { 2 } else { 0 });
+            let key = if live.duration_since(backup).is_ok_and(|delta| delta > tolerance) {
+                "live-save-newer"
+            } else if backup.duration_since(live).is_ok_and(|delta| delta > tolerance) {
+                "backup-save-newer"
+            } else {
+                "save-times-indistinguishable"
+            };
+            details.push('\n');
+            details.push_str(&translate(key));
+        }
+        details
+    }
+
     pub fn app_name(&self) -> String {
         String::from("SlotHarbor")
+    }
+
+    pub fn version_footer(&self) -> String {
+        let version = *crate::prelude::VERSION;
+        let mut args = FluentArgs::new();
+        args.set(VERSION, version.strip_suffix(".0").unwrap_or(version));
+        translate_args("version-footer", &args)
     }
 
     pub fn window_title(&self) -> String {
@@ -411,6 +481,8 @@ impl Translator {
             Error::UnableToOpenDir(path) => self.unable_to_open_dir(path),
             Error::UnableToOpenUrl(url) => self.unable_to_open_url(url),
             Error::RcloneUnavailable => self.rclone_unavailable(),
+            Error::CloudMonitorUnavailable => translate("cloud-monitor-unavailable"),
+            Error::BackupWorkerFailed(error) => format!("{} {error}", translate("backup-worker-failed")),
             Error::CloudNotConfigured => self.cloud_not_configured(),
             Error::CloudPathInvalid => self.cloud_path_invalid(),
             Error::UnableToConfigureCloud(error) => {
@@ -1142,8 +1214,12 @@ impl Translator {
         )
     }
 
-    pub fn exclude_settings_files(&self) -> String {
-        translate("exclude-settings-files")
+    pub fn label_more_settings_files(&self) -> String {
+        translate("label-more-settings-files")
+    }
+
+    pub fn scan_configuration_selection(&self) -> String {
+        translate("scan-configuration-selection")
     }
 
     pub fn explanation_for_exclude_store_screenshots(&self) -> String {
@@ -1338,6 +1414,38 @@ impl Translator {
 
     fn consider_doing_a_preview(&self) -> String {
         translate("consider-doing-a-preview")
+    }
+
+    pub fn confirm_backup_destination(&self, target: &StrictPath) -> String {
+        format!("{}\n\n{}", translate("confirm-backup-destination"), target.render())
+    }
+
+    pub fn scan_configuration_file(&self) -> String {
+        translate("scan-configuration-file")
+    }
+
+    pub fn scan_no_save_files(&self) -> String {
+        translate("scan-no-save-files")
+    }
+
+    pub fn scan_details(&self) -> String {
+        translate("scan-details")
+    }
+
+    pub fn scan_checked_locations(&self) -> String {
+        translate("scan-checked-locations")
+    }
+
+    pub fn scan_no_known_locations(&self) -> String {
+        translate("scan-no-known-locations")
+    }
+
+    pub fn browse_save_file(&self) -> String {
+        translate("browse-save-file")
+    }
+
+    pub fn browse_save_folder(&self) -> String {
+        translate("browse-save-folder")
     }
 
     pub fn confirm_backup(&self, target: &StrictPath, target_exists: bool, suggest: bool) -> String {

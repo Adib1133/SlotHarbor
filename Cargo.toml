@@ -1,6 +1,6 @@
 [package]
 name = "slotharbor"
-version = "0.31.0"
+version = "0.9.0"
 authors = ["mtkennerly <mtkennerly@gmail.com>"]
 edition = "2021"
 description = "SlotHarbor game save backup and restore for Windows"

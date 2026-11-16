@@ -602,14 +602,14 @@ impl StrictPath {
 
     /// Zips don't store time zones, so we normalize to/from UTC.
     pub fn set_mtime_zip(&self, mtime: zip::DateTime) -> Result<(), SetFileTimeError> {
-        let naive_mtime = chrono::NaiveDateTime::new(
-            chrono::NaiveDate::from_ymd_opt(mtime.year() as i32, mtime.month() as u32, mtime.day() as u32)
-                .ok_or(SetFileTimeError::InvalidTimestamp)?,
-            chrono::NaiveTime::from_hms_opt(mtime.hour() as u32, mtime.minute() as u32, mtime.second() as u32)
-                .ok_or(SetFileTimeError::InvalidTimestamp)?,
-        );
-        self.set_mtime(chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive_mtime, chrono::Utc).into())
+        self.set_mtime(Self::mtime_from_zip(mtime).ok_or(SetFileTimeError::InvalidTimestamp)?)
             .map_err(SetFileTimeError::Write)
+    }
+
+    pub fn mtime_from_zip(mtime: zip::DateTime) -> Option<std::time::SystemTime> {
+        let naive = chrono::NaiveDate::from_ymd_opt(mtime.year().into(), mtime.month().into(), mtime.day().into())?
+            .and_hms_opt(mtime.hour().into(), mtime.minute().into(), mtime.second().into())?;
+        Some(naive.and_utc().into())
     }
 
     pub fn remove(&self) -> Result<(), Box<dyn std::error::Error>> {

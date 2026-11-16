@@ -62,6 +62,8 @@ struct FileTreeNode {
     duplicated: Duplication,
     change: ScanChange,
     scanned_file: Option<(StrictPath, ScannedFile)>,
+    save_details: Option<String>,
+    configuration: bool,
     node_type: FileTreeNodeType,
 }
 
@@ -84,6 +86,8 @@ impl FileTreeNode {
             duplicated: Default::default(),
             change: Default::default(),
             scanned_file: None,
+            save_details: None,
+            configuration: false,
             node_type,
         }
     }
@@ -169,16 +173,23 @@ impl FileTreeNode {
                     })
                     .push(make_enabler())
                     .push(text(label))
+                    .push_if(self.configuration, || {
+                        Badge::new(&TRANSLATOR.scan_configuration_file()).view()
+                    })
                     .push({
                         match self.change {
                             ScanChange::Same | ScanChange::Unknown => None,
                             ScanChange::New => Some(Badge::new_entry().view()),
-                            ScanChange::Different => Some(Badge::changed_entry().view()),
+                            ScanChange::Different => Some(match &self.save_details {
+                                Some(details) => Badge::changed_entry().tooltip(details.clone()).view(),
+                                None => Badge::changed_entry().view(),
+                            }),
                             ScanChange::Removed => Some(Badge::removed_entry().view()),
                         }
                     })
                     .push_if(!self.duplicated.unique(), || {
                         Badge::new(&TRANSLATOR.badge_duplicated())
+                            .tooltip(TRANSLATOR.duplicates_explanation())
                             .faded(self.duplicated.resolved())
                             .view()
                     })
@@ -508,11 +519,12 @@ impl FileTree {
     ) -> BTreeMap<TreeNodeKey, FileTreeNode> {
         let mut nodes = BTreeMap::<TreeNodeKey, FileTreeNode>::new();
 
+        let mut archives = HashMap::new();
         for (scan_key, item) in &scan_info.found_files {
             let rendered = item.readable(scan_key, scan_info.scan_kind());
             let components: Vec<_> = rendered.split('/').map(|x| TreeNodeKey::File(x.to_string())).collect();
 
-            nodes
+            let node = nodes
                 .entry(components[0].clone())
                 .or_insert_with(|| {
                     FileTreeNode::new(
@@ -544,6 +556,32 @@ impl FileTree {
                     config,
                     scan_kind,
                 );
+            node.configuration = scan_info.configuration_files.contains(scan_key);
+            node.save_details = if item.change() != ScanChange::Different {
+                None
+            } else {
+                let live = match scan_kind {
+                    ScanKind::Backup => scan_key,
+                    ScanKind::Restore => item.effective(scan_key),
+                }
+                .get_mtime()
+                .ok();
+                let backup = match scan_kind {
+                    ScanKind::Backup => None,
+                    ScanKind::Restore => match &item.container {
+                        None => scan_key.get_mtime().ok(),
+                        Some(path) => archives
+                            .entry(path)
+                            .or_insert_with(|| zip::ZipArchive::new(path.open().ok()?).ok())
+                            .as_mut()
+                            .and_then(|archive| {
+                                let file = archive.by_name(scan_key.raw()).ok()?;
+                                StrictPath::mtime_from_zip(file.last_modified())
+                            }),
+                    },
+                };
+                Some(TRANSLATOR.save_difference(scan_kind, live, backup, item.container.is_some()))
+            };
         }
         for (scan_key, item) in &scan_info.found_registry_keys {
             let components: Vec<_> = scan_key

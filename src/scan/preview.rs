@@ -17,6 +17,9 @@ pub struct ScanInfo {
     /// When `ScannedFile::container` is set, this is the path inside of the container
     /// and should be used in its raw form.
     pub found_files: HashMap<StrictPath, ScannedFile>,
+    pub configuration_files: std::collections::BTreeSet<StrictPath>,
+    pub checked_save_paths: std::collections::BTreeSet<StrictPath>,
+
     pub found_registry_keys: HashMap<RegistryItem, ScannedRegistry>,
     /// Only populated by a restoration scan.
     pub available_backups: Vec<Backup>,
@@ -31,6 +34,16 @@ pub struct ScanInfo {
 }
 
 impl ScanInfo {
+    pub fn has_live_save_data(&self) -> bool {
+        self.found_files
+            .iter()
+            .any(|(path, file)| file.change != ScanChange::Removed && !self.configuration_files.contains(path))
+            || self
+                .found_registry_keys
+                .values()
+                .any(|key| key.change != ScanChange::Removed)
+    }
+
     pub fn sum_bytes(&self, backup_info: Option<&BackupInfo>) -> u64 {
         let successful_bytes = self
             .found_files
@@ -86,7 +99,11 @@ impl ScanInfo {
 
     pub fn update_ignored(&mut self, toggled_paths: &ToggledPaths, toggled_registry: &ToggledRegistry) {
         for (scan_key, v) in self.found_files.iter_mut() {
-            v.ignored = toggled_paths.is_ignored(&self.game_name, v.effective(scan_key));
+            let path = match v.scan_kind() {
+                ScanKind::Backup => scan_key,
+                ScanKind::Restore => v.effective(scan_key),
+            };
+            v.ignored = toggled_paths.is_ignored(&self.game_name, path);
         }
         for (scan_key, v) in self.found_registry_keys.iter_mut() {
             v.ignored = toggled_registry.is_ignored(&self.game_name, scan_key, None);

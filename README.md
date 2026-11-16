@@ -13,15 +13,32 @@ for known save paths.
   Title matching distinguishes similarly named games and numbered sequels.
 - **AppData Local.** The scan checks Local counterparts of game-specific paths
   listed under Roaming or LocalLow.
-- **Optional settings filter.** Enable **Settings → Scan → Exclude game settings
-  files from backups**. The filter uses manifest tags and common settings filenames,
-  with explicit save-file tags taking priority.
+- **Save files and configuration.** INI files and manifest-tagged configuration
+  are labeled in the file list and included by default. Expand the game and
+  uncheck any file you want to leave out. Explicit save-file tags take priority.
+  **Settings → Scan** can also label common non-INI settings filenames.
+- **Missing saves.** Preview the game, then open **Scan details** to see
+  configuration files and locations checked. If no saves were found, browse
+  for the file or folder. SlotHarbor adds the path to the game and previews it again.
 - **Restore review.** See the actual file destinations, including redirects,
   before continuing. The dialog flags newer live files and paths under another
   standard Windows user profile.
 - **Safety copies.** SlotHarbor preserves existing files before replacing them.
   If it cannot make a copy, it skips that file and reports an error.
   [Recover a file from a safety copy](docs/help/restore-review.md).
+
+## Finding and comparing saves
+
+- **Find game** searches all loaded manifest titles and aliases, even before
+  scanning. Select a result to preview its backup.
+- **Back** returns to the previous screen or reverses the last navigation step,
+  such as opening a game, opening a folder, or filtering to shared files.
+- Hover over **Duplicates** to see why entries share a path. In a game's file
+  list, hover over the changed-file badge for modification times. On Restore,
+  SlotHarbor compares the live file with the version in the selected backup
+  when both timestamps are available.
+- Backup and restore default to `C:\Slotharbor`. Existing custom paths and
+  older backup folders that are present on disk are preserved.
 
 ## Run on Windows
 
